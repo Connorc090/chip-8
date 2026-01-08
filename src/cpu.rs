@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
 
 //Default font for Chip-8 *TODO* move to a file and read it instead of hardcoding it in
 const FONTSET: [u8; 80] = [
