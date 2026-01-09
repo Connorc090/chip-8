@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::Read;
+use rand::prelude::*;
 
 //Default font for Chip-8 *TODO* move to a file and read it instead of hardcoding it in
 const FONTSET: [u8; 80] = [
@@ -27,7 +28,7 @@ pub struct Chip8 {
     pc: u16,
     index_reg: u16,
     var_regs: [u8; 16],
-    stack: [u16; 16],
+    stack: Vec<u16>,
     delay_timer: u8,
     sound_timer: u8,
     pub display: [bool; 64 * 32]
@@ -40,7 +41,7 @@ impl Chip8 {
             pc: 0x200,
             index_reg: 0,
             var_regs: [0; 16],
-            stack: [0; 16],
+            stack: vec![0; 16],
             delay_timer: 0,
             sound_timer: 0,
             display: [false; 64 * 32]
@@ -110,6 +111,7 @@ impl Chip8 {
                 }
             } else if instruction == 0x00EE {
                 //Subroutine return
+                self.pc = self.stack.pop().unwrap();
             } else {
                 //*Depricated* Execute routine (do nothing)
             }
@@ -118,12 +120,23 @@ impl Chip8 {
             self.pc = nnn;
         } else if n1 == 0x2 {
             //Call subroutine
+            self.stack.push(self.pc);
+            self.pc = nnn;
         } else if n1 == 0x3 {
             //Skip if equal (immediate)
+            if self.var_regs[n2 as usize] == h2 {
+                self.pc += 2;
+            }
         } else if n1 == 0x4 {
             //Skip if not equal (immediate)
+            if self.var_regs[n2 as usize] != h2 {
+                self.pc += 2;
+            }
         } else if n1 == 0x5 {
             //Skip if equal (var reg)
+            if self.var_regs[n2 as usize] == self.var_regs[n3 as usize] {
+                self.pc += 2;
+            } 
         } else if n1 == 0x6 {
             //Set register (immediate)
             self.var_regs[n2 as usize] = h2;
@@ -134,34 +147,83 @@ impl Chip8 {
             //ALU
             if n4 == 0x0 {
                 //Set register
+                self.var_regs[n2 as usize] = self.var_regs[n3 as usize];
             } else if n4 == 0x1 {
                 //Binary OR
+                self.var_regs[n2 as usize] = self.var_regs[n2 as usize] | self.var_regs[n3 as usize];
             } else if n4 == 0x2 {
                 //Binary AND
+                self.var_regs[n2 as usize] = self.var_regs[n2 as usize] & self.var_regs[n3 as usize];
             } else if n4 == 0x3 {
                 //Logical XOR
+                self.var_regs[n2 as usize] = self.var_regs[n2 as usize] ^ self.var_regs[n3 as usize];
             } else if n4 == 0x4 {
                 //Add
+                self.var_regs[n2 as usize] += self.var_regs[n3 as usize];
             } else if n4 == 0x5 {
                 //Subtract (x - y)
+                let vx = self.var_regs[n2 as usize];
+                let vy = self.var_regs[n3 as usize];
+
+                let borrow_flag= if vx > vy {1} else {0};
+
+                self.var_regs[n2 as usize] = vx.wrapping_sub(vy);
+
+                self.var_regs[0xF] = borrow_flag;
             } else if n4 == 0x6 {
                 //Shift right
+                self.var_regs[n2 as usize] = self.var_regs[n3 as usize]; //Potentially comment out depending on program functionality
+
+                let mask: u8 = 0b00000001;
+                let carry_flag = self.var_regs[n2 as usize] & mask;
+
+                self.var_regs[0xF] = carry_flag;
+
+                self.var_regs[n2 as usize] >>= 1;
             } else if n4 == 0x7 {
                 //Subtract (y - x)
+                let vx = self.var_regs[n2 as usize];
+                let vy = self.var_regs[n3 as usize];
+
+                let borrow_flag= if vy > vx {1} else {0};
+
+                self.var_regs[n2 as usize] = vy.wrapping_sub(vx);
+
+                self.var_regs[0xF] = borrow_flag;
             } else if n4 == 0xE {
                 //Shift left
+                self.var_regs[n2 as usize] = self.var_regs[n3 as usize]; //Potentially comment out depending on program functionality
+
+                let mask: u8 = 0b10000000;
+                let carry_flag = (self.var_regs[n2 as usize] & mask) >> 7;
+
+                self.var_regs[0xF] = carry_flag;
+
+                self.var_regs[n2 as usize] <<= 1;
             } else {
                 //Throw error
             }
         } else if n1 == 0x9 {
             //Skip if not equal (var reg)
+            if self.var_regs[n2 as usize] != self.var_regs[n3 as usize] {
+                self.pc += 2;
+            }
         } else if n1 == 0xA {
             //Set index
             self.index_reg = nnn;
         } else if n1 == 0xB {
             //Jump with offset
+            
+            //Old method below, not used in most modern programs
+            //self.pc = nnn + self.var_regs[0x0] as u16;
+
+            self.pc = nnn + self.var_regs[n2 as usize] as u16;
         } else if n1 == 0xC {
             //Random
+            let mut rng = rand::rng();
+            let num: u8 = rng.random_range(0..h2);
+
+            self.var_regs[n2 as usize] &= num;
         } else if n1 == 0xD {
             //Display
             let x = self.var_regs[n2 as usize] % 64;
