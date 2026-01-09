@@ -31,7 +31,8 @@ pub struct Chip8 {
     stack: Vec<u16>,
     delay_timer: u8,
     sound_timer: u8,
-    pub display: [bool; 64 * 32]
+    pub display: [bool; 64 * 32],
+    pub keypad: [bool; 16]
 }
 
 impl Chip8 {
@@ -44,7 +45,8 @@ impl Chip8 {
             stack: vec![0; 16],
             delay_timer: 0,
             sound_timer: 0,
-            display: [false; 64 * 32]
+            display: [false; 64 * 32],
+            keypad: [false; 16]
         }
     }
 
@@ -67,6 +69,16 @@ impl Chip8 {
             } else {
                 break;
             }
+        }
+    }
+
+    pub fn update_timers(&mut self) {
+        if self.delay_timer > 0 {
+            self.delay_timer -= 1;
+        }
+
+        if self.sound_timer > 0 {
+            self.sound_timer -= 1;
         }
     }
 
@@ -272,30 +284,88 @@ impl Chip8 {
             //Skip if key
             if h2 == 0x9E {
                 //Skip if key press
+                if self.keypad[self.var_regs[n2 as usize] as usize] {
+                    self.pc += 2;
+                }
             } else if h2 == 0xA1 {
                 //Skip if key not pressed
+                if !self.keypad[self.var_regs[n2 as usize] as usize] {
+                    self.pc += 2;
+                }
             } else {
                 //Throw error
             }
         } else if n1 == 0xF {
             if h2 == 0x07 {
                 //Set reg to delay timer val
+                self.var_regs[n2 as usize] = self.delay_timer;
             } else if h2 == 0x15 {
                 //Set delay timer to reg val
+                self.delay_timer = self.var_regs[n2 as usize];
             } else if h2 == 0x18 {
                 //Set sound timer to reg val
+                self.sound_timer = self.var_regs[n2 as usize];
             } else if h2 == 0x1E {
                 //Add to index
+                let vx = self.var_regs[n2 as usize];
+                let i = self.index_reg;
+
+                let borrow_flag = if (vx as u16) + i > 0x0FFF {1} else {0};
+
+                if borrow_flag == 1 {
+                    self.var_regs[0xF] = 1
+                }
+
+                self.index_reg += self.var_regs[n2 as usize] as u16;
             } else if h2 == 0x0A {
                 //Get key
+                let mut key_flag = false;
+
+                for i in 0..self.keypad.len() {
+                    if self.keypad[i] {
+                        key_flag = true;
+                        self.var_regs[n2 as usize] = i as u8;
+
+                        break;
+                    }
+                }
+
+                if !key_flag {self.pc -= 2}
             } else if h2 == 0x29 {
                 //Font char
+                let sprite_index = self.var_regs[n2 as usize] & 0x0F;
+
+                let sprite_addr = 0x50 + (sprite_index * 5);
+
+                self.index_reg = sprite_addr as u16;
             } else if h2 == 0x33 {
                 //Binary decimal conversion
+                let byte = self.var_regs[n2 as usize];
+               
+                let digit_high = byte / 100;
+                let digit_mid = (byte / 10) % 10;
+                let digit_low = byte % 10;
+
+                let addr = self.index_reg;
+
+                self.memory[addr as usize] = digit_high as u8;
+                self.memory[(addr + 1) as usize] = digit_mid as u8;
+                self.memory[(addr + 2) as usize] = digit_low as u8;
             } else if h2 == 0x55 {
-                //Store to memory
+                //Store to memory *TODO* Add old ver of instruction
+                let index_val = self.index_reg;
+
+                for i in 0..=n2 as usize {
+                    self.memory[(index_val as usize) + i] = self.var_regs[i];
+                }
+
             } else if h2 == 0x65 {
-                //Load from memory
+                //Load from memory *TODO* Add old ver of instruction
+                let index_val = self.index_reg;
+
+                for i in 0..=n2 as usize {
+                    self.var_regs[i] = self.memory[(index_val as usize) + i];
+                }
             } else {
                 //Throw error
             }
