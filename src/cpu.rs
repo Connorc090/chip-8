@@ -154,7 +154,7 @@ impl Chip8 {
             self.var_regs[n2 as usize] = h2;
         } else if n1 == 0x7 {
             //Add (immediate)
-            self.var_regs[n2 as usize] += h2;
+            self.var_regs[n2 as usize] = self.var_regs[n2 as usize].wrapping_add(h2);
         } else if n1 == 0x8 {
             //ALU
             if n4 == 0x0 {
@@ -171,7 +171,7 @@ impl Chip8 {
                 self.var_regs[n2 as usize] = self.var_regs[n2 as usize] ^ self.var_regs[n3 as usize];
             } else if n4 == 0x4 {
                 //Add
-                self.var_regs[n2 as usize] += self.var_regs[n3 as usize];
+                self.var_regs[n2 as usize] = self.var_regs[n2 as usize].wrapping_add(self.var_regs[n3 as usize]);
             } else if n4 == 0x5 {
                 //Subtract (x - y)
                 let vx = self.var_regs[n2 as usize];
@@ -184,14 +184,12 @@ impl Chip8 {
                 self.var_regs[0xF] = borrow_flag;
             } else if n4 == 0x6 {
                 //Shift right
-                self.var_regs[n2 as usize] = self.var_regs[n3 as usize]; //Potentially comment out depending on program functionality
+                //self.var_regs[n2 as usize] = self.var_regs[n3 as usize]; //Potentially comment out depending on program functionality
+                let carry_flag = (self.var_regs[n2 as usize]) & 1;
 
-                let mask: u8 = 0b00000001;
-                let carry_flag = self.var_regs[n2 as usize] & mask;
+                self.var_regs[n2 as usize] <<= 1;
 
                 self.var_regs[0xF] = carry_flag;
-
-                self.var_regs[n2 as usize] >>= 1;
             } else if n4 == 0x7 {
                 //Subtract (y - x)
                 let vx = self.var_regs[n2 as usize];
@@ -204,14 +202,12 @@ impl Chip8 {
                 self.var_regs[0xF] = borrow_flag;
             } else if n4 == 0xE {
                 //Shift left
-                self.var_regs[n2 as usize] = self.var_regs[n3 as usize]; //Potentially comment out depending on program functionality
-
-                let mask: u8 = 0b10000000;
-                let carry_flag = (self.var_regs[n2 as usize] & mask) >> 7;
-
-                self.var_regs[0xF] = carry_flag;
+                //self.var_regs[n2 as usize] = self.var_regs[n3 as usize]; //Potentially comment out depending on program functionality
+                let carry_flag = ((self.var_regs[n2 as usize]) >> 7) & 1;
 
                 self.var_regs[n2 as usize] <<= 1;
+
+                self.var_regs[0xF] = carry_flag;
             } else {
                 //Throw error
             }
@@ -265,14 +261,14 @@ impl Chip8 {
 
                     self.display[index as usize] ^= display_bool;
 
-                    if xc + 1 > 64 {
+                    if xc + 1 >= 64 {
                         break;
                     } else {
                         xc += 1;
                     }
                 }
 
-                if yc + 1 > 32 {
+                if yc + 1 >= 32 {
                     break;
                 } else {
                     yc += 1;

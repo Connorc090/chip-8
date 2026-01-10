@@ -28,7 +28,7 @@ fn main() {
     let mut this_cpu = cpu::Chip8::new();
 
     this_cpu.load_font();
-    this_cpu.load_rom("assets/roms/ibm.ch8");
+    this_cpu.load_rom("assets/roms/Brick (Brix hack, 1990).ch8");
 
     cycle(&mut this_cpu);
 }
@@ -39,7 +39,7 @@ fn cycle(this_cpu: &mut Chip8) {
         "Chip-8 Emulator",
         64, 32,
         WindowOptions {
-            scale: minifb::Scale::X8,
+            scale: minifb::Scale::X16,
             ..WindowOptions::default()
         }
     ).unwrap();
